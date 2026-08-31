@@ -1,0 +1,14 @@
+[Unit]
+Description=S-Bot Restaurant & Admin Dashboard Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/home/YOUR_SPANEL_USER/s-bot/backend
+ExecStart=/home/YOUR_SPANEL_USER/s-bot/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
