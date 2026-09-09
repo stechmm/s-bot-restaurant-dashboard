@@ -325,6 +325,34 @@ async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, sli
         await session.execute(delete(CartItem).where(CartItem.user_id == user.id))
         await session.commit()
 
+    # --- Notify Admin via Telegram ---
+    from app.bot.bot_service import bot_service
+    from app.core.config import settings
+    try:
+        admin_chat_id = settings.ADMIN_TELEGRAM_ID or settings.SUPPORT_NOTIFICATION_CHAT_ID
+        if admin_chat_id and bot_service.application:
+            items_summary = ""
+            for item in cart_items:
+                items_summary += f"  • {item.product.name} x{item.quantity} = {item.product.price * item.quantity:,.0f} MMK\n"
+            admin_msg = (
+                f"🔔 <b>အသစ် Order ဝင်ရောက်လာပါပြီ!</b>\n\n"
+                f"🔖 <b>Order Code:</b> <code>{order_code}</code>\n"
+                f"👤 <b>Customer:</b> {name}\n"
+                f"📞 <b>ဖုန်း:</b> {phone}\n"
+                f"🏠 <b>လိပ်စာ:</b> {address}\n"
+                f"💳 <b>ငွေပေးချေမှု:</b> {payment}\n\n"
+                f"🛒 <b>မှာယူသော ပစ္စည်းများ:</b>\n{items_summary}\n"
+                f"💵 <b>စုစုပေါင်း: {total_amount:,.0f} MMK</b>\n\n"
+                f"⏳ Dashboard မှ Order ကို Confirm လုပ်ပေးပါ!"
+            )
+            await bot_service.application.bot.send_message(
+                chat_id=int(admin_chat_id),
+                text=admin_msg,
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        logger.warning(f"Admin order alert failed: {e}")
+
     success_text = (
         f"🎉 <b>အော်ဒါတင်ခြင်း အောင်မြင်ပါသည်!</b>\n\n"
         f"🔖 <b>Order Code:</b> <code>{order_code}</code>\n"
@@ -363,26 +391,93 @@ async def my_orders_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📦 သင်သည် အော်ဒါတင်ထားခြင်း မရှိသေးပါ။")
         return
 
-    text = "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\n"
+    text = "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
     status_emojis = {
         "Pending": "⏳",
         "Confirmed": "✅",
-        "Shipped": "🚚",
+        "Cooking": "👨‍🍳",
+        "Out for Delivery": "🚚",
         "Delivered": "🎉",
         "Cancelled": "❌"
     }
 
+    keyboard = []
     for ord in orders:
         emoji = status_emojis.get(ord.status, "📌")
-        text += (
-            f"🔖 <b>Code:</b> <code>{ord.order_code}</code>\n"
-            f"📅 <b>Date:</b> {ord.created_at.strftime('%Y-%m-%d %H:%M')}\n"
-            f"💵 <b>Amount:</b> {ord.total_amount:,.0f} MMK\n"
-            f"🔄 <b>Status:</b> {emoji} {ord.status}\n"
-            f"────────────────────\n"
-        )
+        btn_text = f"{emoji} {ord.order_code} — {ord.total_amount:,.0f} MMK ({ord.status})"
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"order_detail_{ord.id}")])
 
-    await update.message.reply_text(text, parse_mode="HTML")
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+
+async def order_detail_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    order_id = int(query.data.split("_")[2])
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+        )
+        order = result.scalar_one_or_none()
+
+    if not order:
+        await query.edit_message_text("Order ရှာမတွေ့ပါ။")
+        return
+
+    status_emojis = {
+        "Pending": "⏳ Pending (စောင့်ဆိုင်းနေ)",
+        "Confirmed": "✅ Confirmed (အတည်ပြုပြီး)",
+        "Cooking": "👨‍🍳 Cooking (ချက်ပြုတ်နေ)",
+        "Out for Delivery": "🚚 Out for Delivery (လမ်းတွင်ရှိ)",
+        "Delivered": "🎉 Delivered (ရောက်ရှိပြီး)",
+        "Cancelled": "❌ Cancelled (ပယ်ဖျက်ပြီး)"
+    }
+
+    items_text = ""
+    for item in order.items:
+        items_text += f"  • {item.product_name} x{item.quantity} = {item.subtotal:,.0f} MMK\n"
+
+    text = (
+        f"🔖 <b>Order Code:</b> <code>{order.order_code}</code>\n"
+        f"📅 <b>Date:</b> {order.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+        f"👤 <b>အမည်:</b> {order.customer_name}\n"
+        f"📞 <b>ဖုန်း:</b> {order.customer_phone}\n"
+        f"🏠 <b>လိပ်စာ:</b> {order.delivery_address}\n"
+        f"💳 <b>ငွေပေးချေမှု:</b> {order.payment_method}\n\n"
+        f"🛒 <b>မှာယူသောပစ္စည်းများ:</b>\n{items_text}\n"
+        f"💵 <b>စုစုပေါင်း: {order.total_amount:,.0f} MMK</b>\n\n"
+        f"🔄 <b>Status:</b> {status_emojis.get(order.status, order.status)}"
+    )
+    if order.notes:
+        text += f"\n📝 <b>မှတ်ချက်:</b> {order.notes}"
+
+    keyboard = [[InlineKeyboardButton("🔙 Orders စာရင်းသို့", callback_data="back_my_orders")]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+
+async def back_my_orders_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = await get_or_create_user(update.effective_user)
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc()).limit(5)
+        )
+        orders = result.scalars().all()
+
+    status_emojis = {
+        "Pending": "⏳", "Confirmed": "✅", "Cooking": "👨‍🍳",
+        "Out for Delivery": "🚚", "Delivered": "🎉", "Cancelled": "❌"
+    }
+    text = "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
+    keyboard = []
+    for ord in orders:
+        emoji = status_emojis.get(ord.status, "📌")
+        btn_text = f"{emoji} {ord.order_code} — {ord.total_amount:,.0f} MMK ({ord.status})"
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"order_detail_{ord.id}")])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+
 
 def register_shop_handlers(app: Application):
     # Main menu buttons
@@ -397,6 +492,8 @@ def register_shop_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(product_detail_callback, pattern="^prod_"))
     app.add_handler(CallbackQueryHandler(add_to_cart_callback, pattern="^add_cart_"))
     app.add_handler(CallbackQueryHandler(clear_cart_callback, pattern="^clear_cart$"))
+    app.add_handler(CallbackQueryHandler(order_detail_callback, pattern="^order_detail_"))
+    app.add_handler(CallbackQueryHandler(back_my_orders_callback, pattern="^back_my_orders$"))
 
     # Checkout Conversation
     checkout_conv = ConversationHandler(

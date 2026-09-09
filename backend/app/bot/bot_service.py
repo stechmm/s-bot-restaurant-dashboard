@@ -63,6 +63,9 @@ class BotService:
             register_support_handlers(self.app)
             register_news_handlers(self.app)
 
+            from app.bot.handlers.review import register_review_handlers
+            register_review_handlers(self.app)
+
             await self.app.initialize()
             
             # Clear any old webhook from previous apps if exists

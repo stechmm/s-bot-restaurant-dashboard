@@ -8,26 +8,39 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.bot.bot_service import bot_service
+from app.bot.scheduler import start_scheduler, stop_scheduler
+
+# Import all models so SQLAlchemy creates tables
+from app.models import models
+from app.models import coupon, review
 
 # Routers
 from app.routers import auth, stats, products, orders, support, broadcast, settings as app_settings
+from app.routers import coupons, reviews
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create tables if not exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # Auto start Telegram Bot if token configured
     try:
         await bot_service.start()
     except Exception as e:
         print(f"Bot auto-start notice: {e}")
 
+    # Start daily report scheduler
+    try:
+        start_scheduler()
+    except Exception as e:
+        print(f"Scheduler start notice: {e}")
+
     yield
 
-    # Shutdown: Stop bot
+    # Shutdown: Stop bot and scheduler
     await bot_service.stop()
+    stop_scheduler()
 
 app = FastAPI(
     title="Restaurant Telegram Bot & Admin Dashboard API",
@@ -57,6 +70,8 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(support.router, prefix="/api")
 app.include_router(broadcast.router, prefix="/api")
 app.include_router(app_settings.router, prefix="/api")
+app.include_router(coupons.router, prefix="/api")
+app.include_router(reviews.router, prefix="/api")
 
 # Serve Frontend Production Build if exists
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")

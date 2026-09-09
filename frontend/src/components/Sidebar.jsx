@@ -8,7 +8,9 @@ import {
   Users, 
   Settings as SettingsIcon,
   Bot,
-  ExternalLink
+  ExternalLink,
+  Tag,
+  Star
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -17,6 +19,8 @@ const NAV_ITEMS = [
   { id: 'orders', label: 'Food Orders', labelMm: 'အော်ဒါစာရင်းများ', icon: PackageCheck },
   { id: 'support', label: 'Support Live Chat', labelMm: 'Support တိုက်ရိုက်ပြောရန်', icon: MessageSquareText },
   { id: 'broadcast', label: 'Promos & Broadcast', labelMm: 'ပရိုမိုးရှင်းနှင့် သတင်း', icon: Radio },
+  { id: 'coupons', label: 'Coupons & Discounts', labelMm: 'Coupon နှင့် လျှော့ဈေး', icon: Tag },
+  { id: 'reviews', label: 'Reviews & Ratings', labelMm: 'အကဲဖြတ်ချက်များ', icon: Star },
   { id: 'users', label: 'Bot Subscribers', labelMm: 'Bot အသုံးပြုသူများ', icon: Users },
   { id: 'settings', label: 'Settings & FAQ', labelMm: 'ဆက်တင်များ / FAQ', icon: SettingsIcon },
 ];

@@ -108,3 +108,31 @@ async def upload_product_image(file: UploadFile = File(...)):
     with open(filepath, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     return {"image_url": f"/uploads/{filename}"}
+
+@router.post("/{product_id}/upload-image", response_model=ProductOut)
+async def upload_product_image_for_product(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    ext = os.path.splitext(file.filename)[1]
+    filename = f"product_{product_id}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Remove old image file if exists and is a local file
+    if product.image_url and product.image_url.startswith("/uploads/"):
+        old_path = os.path.join(UPLOAD_DIR, os.path.basename(product.image_url))
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    product.image_url = f"/uploads/{filename}"
+    await db.commit()
+    res = await db.execute(select(Product).options(selectinload(Product.category)).where(Product.id == product.id))
+    return res.scalar_one()

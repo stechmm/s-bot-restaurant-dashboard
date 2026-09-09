@@ -19,11 +19,13 @@ export default function Products({ lang }) {
   const [selectedCat, setSelectedCat] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const fileInputRef = React.useRef(null);
 
   // Form State
   const [form, setForm] = useState({
@@ -88,6 +90,34 @@ export default function Products({ lang }) {
       is_active: prod.is_active
     });
     setIsModalOpen(true);
+  };
+
+  const handleImageUpload = async (e, productId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (productId) {
+        // Upload directly to existing product
+        const res = await api.post(`/products/${productId}/upload-image`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setForm(f => ({ ...f, image_url: res.data.image_url }));
+        fetchData();
+      } else {
+        // Upload generic and store URL in form
+        const res = await api.post('/products/upload-image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setForm(f => ({ ...f, image_url: res.data.image_url }));
+      }
+    } catch (err) {
+      alert('ပုံ upload မအောင်မြင်ပါ: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSaveProduct = async (e) => {
@@ -357,14 +387,51 @@ export default function Products({ lang }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">ပုံ Link (Image URL)</label>
-                  <input
-                    type="url"
-                    value={form.image_url}
-                    onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                    placeholder="https://..."
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
-                  />
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">ပုံ (Product Image)</label>
+                  <div className="flex flex-col gap-2">
+                    {form.image_url && (
+                      <div className="relative w-full h-28 rounded-xl overflow-hidden border border-slate-700 bg-slate-800">
+                        <img
+                          src={form.image_url}
+                          alt="preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display='none'; }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, image_url: '' })}
+                          className="absolute top-1.5 right-1.5 p-1 bg-rose-600 rounded-lg text-white hover:bg-rose-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={(e) => handleImageUpload(e, editingProduct?.id)}
+                      className="hidden"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 border border-slate-700 border-dashed hover:border-sky-500 hover:bg-slate-700/50 text-slate-400 hover:text-sky-400 rounded-xl text-xs font-semibold transition"
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                        {uploadingImage ? 'Upload နေသည်...' : 'ပုံရွေးချယ် Upload မည်'}
+                      </button>
+                    </div>
+                    <input
+                      type="url"
+                      value={form.image_url}
+                      onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                      placeholder="သို့မဟုတ် Image URL ထည့်ပါ..."
+                      className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
                 </div>
               </div>
 

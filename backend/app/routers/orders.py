@@ -67,7 +67,8 @@ async def update_order_status(
             status_emojis = {
                 "Pending": "⏳",
                 "Confirmed": "✅",
-                "Shipped": "🚚",
+                "Cooking": "👨‍🍳",
+                "Out for Delivery": "🚚",
                 "Delivered": "🎉",
                 "Cancelled": "❌"
             }
@@ -81,5 +82,21 @@ async def update_order_status(
             notify_text += "\n\nကျေးဇူးတင်ရှိပါသည်! 🙏"
 
             await bot_service.send_message_to_user(user.telegram_id, notify_text)
+
+            # If delivered, send review request
+            if payload.status == "Delivered":
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                review_keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⭐ Rating ပေးမည်", callback_data=f"review_start_{order.id}")
+                ]])
+                await bot_service.application.bot.send_message(
+                    chat_id=user.telegram_id,
+                    text=(
+                        "🎉 <b>ပစ္စည်းရရှိပြီးပါပြီ!</b>\n\n"
+                        "ကျွန်တော်တို့၏ ဝန်ဆောင်မှုအပေါ် Rating တစ်ခုပေးပါ-"
+                    ),
+                    reply_markup=review_keyboard,
+                    parse_mode="HTML"
+                )
 
     return order

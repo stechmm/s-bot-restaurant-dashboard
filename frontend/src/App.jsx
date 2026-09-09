@@ -8,6 +8,8 @@ import SupportChat from './pages/SupportChat';
 import BroadcastNews from './pages/BroadcastNews';
 import UsersList from './pages/UsersList';
 import Settings from './pages/Settings';
+import Coupons from './pages/Coupons';
+import Reviews from './pages/Reviews';
 import api from './api/client';
 
 export default function App() {
@@ -98,6 +100,8 @@ export default function App() {
           {activeTab === 'orders' && <Orders lang={lang} theme={theme} />}
           {activeTab === 'support' && <SupportChat lang={lang} theme={theme} />}
           {activeTab === 'broadcast' && <BroadcastNews lang={lang} theme={theme} />}
+          {activeTab === 'coupons' && <Coupons lang={lang} theme={theme} />}
+          {activeTab === 'reviews' && <Reviews lang={lang} theme={theme} />}
           {activeTab === 'users' && <UsersList lang={lang} theme={theme} />}
           {activeTab === 'settings' && (
             <Settings

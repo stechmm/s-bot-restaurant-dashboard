@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     CURRENCY: str = "MMK"
     STORE_NAME: str = "S-Bot Restaurant & Cafe"
     SUPPORT_NOTIFICATION_CHAT_ID: str = ""
+    ADMIN_TELEGRAM_ID: str = ""  # Admin's Telegram User ID for order alerts
     
     class Config:
         env_file = ".env"
