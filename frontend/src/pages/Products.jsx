@@ -326,10 +326,12 @@ export default function Products({ lang }) {
                 ) : (
                   <ImageIcon className="w-12 h-12 text-slate-600" />
                 )}
-                {/* Stock Badge */}
-                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-slate-900/80 backdrop-blur-md text-[11px] font-bold text-slate-300 border border-slate-700">
-                  Stock: {prod.stock}
-                </span>
+                {/* Stock Badge (Only shown for retail/inventory based businesses) */}
+                {activeStore?.business_type !== 'restaurant' && (
+                  <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-slate-900/80 backdrop-blur-md text-[11px] font-bold text-slate-300 border border-slate-700">
+                    Stock: {prod.stock}
+                  </span>
+                )}
                 {/* Category Pill */}
                 {prod.category && (
                   <span className="absolute bottom-3 left-3 px-2 py-0.5 rounded-lg bg-sky-950/80 backdrop-blur-md text-[10px] font-semibold text-sky-400 border border-sky-800">
@@ -428,18 +430,20 @@ export default function Products({ lang }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">လက်ကျန် (Stock Quantity)</label>
-                  <input
-                    type="number"
-                    value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                    placeholder="50"
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-                <div>
+              <div className={activeStore?.business_type === 'restaurant' ? 'space-y-4' : 'grid grid-cols-2 gap-4'}>
+                {activeStore?.business_type !== 'restaurant' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">လက်ကျန် (Stock Quantity)</label>
+                    <input
+                      type="number"
+                      value={form.stock}
+                      onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                      placeholder="50"
+                      className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                )}
+                <div className={activeStore?.business_type === 'restaurant' ? 'w-full' : ''}>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">ပုံ (Product Image)</label>
                   <div className="flex flex-col gap-2">
                     {form.image_url && (

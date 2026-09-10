@@ -80,21 +80,29 @@ async def product_detail_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     prod_id = int(query.data.split("_")[1])
+    store_id = context.bot_data.get("store_id", 1)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(Product).where(Product.id == prod_id))
         prod = result.scalar_one_or_none()
+        
+        from app.models.store import Store
+        store_res = await session.execute(select(Store).where(Store.id == store_id))
+        store_obj = store_res.scalar_one_or_none()
 
     if not prod:
         await query.edit_message_text("ပစ္စည်းရှာမတွေ့ပါ။")
         return
 
+    is_restaurant = (store_obj and store_obj.business_type == "restaurant") or (not store_obj)
+
     text = (
         f"🏷️ <b>{prod.name}</b>\n\n"
         f"📝 <b>အသေးစိတ်:</b> {prod.description or 'မရှိပါ'}\n"
         f"💰 <b>စျေးနှုန်း:</b> {prod.price:,.0f} MMK\n"
-        f"📦 <b>လက်ကျန်:</b> {prod.stock} ခု\n"
     )
+    if not is_restaurant:
+        text += f"📦 <b>လက်ကျန်:</b> {prod.stock} ခု\n"
 
     keyboard = [
         [
