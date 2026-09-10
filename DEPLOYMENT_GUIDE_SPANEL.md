@@ -1,66 +1,53 @@
-# 🌐 SPanel VPS ပေါ်သို့ S-Bot တင်နည်း လမ်းညွှန် (SPanel Deployment Guide)
+# 🌐 SPanel VPS ပေါ်သို့ sbot.stechmm.app တင်နည်း လမ်းညွှန်
 
-ဒီလမ်းညွှန်ချက်သည် **S-Bot Restaurant & Admin Dashboard** ကို **SPanel VPS** ပေါ်သို့ ၂၄ နာရီ မရပ်မနား Run နိုင်အောင် အဆင့်ဆင့် တင်နည်းဖြစ်ပါသည်။
-
----
-
-## ၁။ Project ဖိုင်များကို Zip ပြုလုပ်ပြီး VPS ပေါ်တင်ခြင်း
-
-1. မိမိကွန်ပျူတာရှိ `telegram-omni-bot-dashboard` folder အားလုံး (သို့မဟုတ် `backend/` နှင့် `frontend/dist/`) ကို **`sbot.zip`** အဖြစ် Zip ဖိုင် ချုံ့ပါ။
-2. **SPanel Control Panel** သို့ ဝင်ရောက်ပါ။
-3. **File Manager** သို့ သွားပြီး မိမိ Domain သို့မဟုတ် User directory (ဥပမာ- `/home/username/sbot`) တွင် `sbot.zip` ကို **Upload** တင်ပြီး **Extract (Unzip)** လုပ်ပါ။
+ဤလမ်းညွှန်ချက်သည် **S-Bot Multi-Business & Restaurant Control Center** ကို **SPanel VPS** ပေါ်တွင် Domain: **`sbot.stechmm.app`** ဖြင့် ၂၄ နာရီ မရပ်မနား Run နိုင်အောင် အဆင့်ဆင့် ပြုလုပ်နည်း ဖြစ်ပါသည်။
 
 ---
 
-## ၂။ SSH Terminal ဖွင့်၍ Dependencies သွင်းခြင်း
+## အဆင့် (၁) — DNS A Record ချိတ်ဆက်ခြင်း
 
-SPanel ၏ **SSH Terminal** (သို့မဟုတ် PuTTY) မှတစ်ဆင့် အောက်ပါ command များကို ရိုက်ထည့်ပါ-
+မိမိ Domain စီမံခန့်ခွဲရာနေရာ (Cloudflare သို့မဟုတ် Domain Registrar) တွင် DNS Record ထည့်သွင်းပါ-
+* **Type**: `A`
+* **Name (Host)**: `sbot` (သို့မဟုတ် `sbot.stechmm.app`)
+* **Target / IP**: သင်၏ `SPanel VPS IP Address`
+* **Proxy Status**: DNS Only (သို့မဟုတ် Cloudflare Proxy ON)
+
+---
+
+## အဆင့် (၂) — SPanel ထဲတွင် Website / Subdomain ဖန်တီးခြင်း
+
+1. **SPanel Admin / User Panel** သို့ ဝင်ရောက်ပါ။
+2. **Domains / Websites** သို့ သွားပြီး **Create a new account / domain** ကို နှိပ်ပါ။
+3. Domain အမည်တွင် **`sbot.stechmm.app`** ဟု ထည့်သွင်းပြီး ဖန်တီးပါ။
+4. **SSL Certificates** ကဏ္ဍသို့ သွားပြီး `sbot.stechmm.app` အတွက် **Let's Encrypt (Free SSL)** ကို 1-Click ဖြင့် အသက်သွင်း (Install) လုပ်ပါ။
+
+---
+
+## အဆင့် (၃) — VPS ပေါ်တွင် S-Bot ကို Run ခြင်း (All-in-One Docker — အလွယ်ဆုံးနည်း)
+
+SPanel ၏ **SSH Terminal** (သို့မဟုတ် PuTTY) မှတစ်ဆင့် အောက်ပါ command ၃ ကြောင်းသာ ရိုက်ထည့်ပါ-
 
 ```bash
-# ၁။ Folder ထဲသို့ ဝင်ပါ
-cd /home/username/sbot
+# ၁။ GitHub မှ project ကို ဆွဲယူပါ
+git clone https://github.com/stechmm/s-bot-restaurant-dashboard.git
 
-# ၂။ Python Virtual Environment ဆောက်ပါ
-python3 -m venv venv
-source venv/bin/activate
+# ၂။ Folder ထဲ ဝင်ပါ
+cd s-bot-restaurant-dashboard
 
-# ၃။ လိုအပ်သော Packages များ သွင်းပါ
-pip install -r backend/requirements.txt
-
-# ၄။ Restaurant Data အသင့် စတင်ထည့်သွင်းပါ
-cd backend
-python seed_data.py
-cd ..
+# ၃။ All-in-One script ကို run ပါ (Docker မရှိသေးပါက အလိုအလျောက် သွင်းပြီး စတင် run ပေးပါမည်)
+bash setup.sh
 ```
+
+*(ဤ command ပြီးသည်နှင့် S-Bot သည် Server ၏ Port `8000` ပေါ်တွင် အသင့် စတင် လည်ပတ်နေပါပြီ)*
 
 ---
 
-## ၃။ S-Bot ကို ၂၄ နာရီ အမြဲတမ်း Run ထားရန် (Background Service)
+## အဆင့် (၄) — SPanel Nginx Reverse Proxy ချိန်ညှိခြင်း
 
-ရွေးချယ်စရာ နည်းလမ်း ၂ မျိုး ရှိပါသည်-
+`sbot.stechmm.app` သို့ လာသမျှ Request များကို Port 8000 ရှိ S-Bot ထံ လွှဲပြောင်းပေးရန်-
 
-### နည်းလမ်း (A): PM2 ဖြင့် Run ခြင်း (အလွယ်ဆုံး)
-```bash
-npm install -g pm2
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### နည်းလမ်း (B): Systemd Service ဖြင့် Run ခြင်း
-```bash
-sudo cp sbot.service /etc/systemd/system/sbot.service
-# (မှတ်ချက်: sbot.service ထဲရှိ YOUR_SPANEL_USER နေရာတွင် မိမိ user အမည် ပြောင်းပါ)
-sudo systemctl daemon-reload
-sudo systemctl enable sbot
-sudo systemctl start sbot
-```
-
----
-
-## ၄။ Domain နှင့် Reverse Proxy (Nginx) ချိတ်ဆက်ခြင်း
-
-SPanel တွင် Domain သို့မဟုတ် Subdomain (ဥပမာ- `bot.yourdomain.com`) ၏ **Nginx Configuration / Reverse Proxy** တွင် အောက်ပါအတိုင်း ထည့်ပါ-
+1. SPanel ထဲရှိ **`sbot.stechmm.app`** ၏ **Nginx Configuration / Reverse Proxy** (သို့မဟုတ် OpenLiteSpeed Proxy) သို့ သွားပါ။
+2. အောက်ပါ Code ကို ကူးယူထည့်သွင်းပါ (သို့မဟုတ် `nginx_sbot.conf` ထဲရှိ စာသားများကို ကူးယူပါ)-
 
 ```nginx
 location / {
@@ -72,14 +59,26 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+
+    proxy_buffering off;
+    proxy_cache off;
 }
 ```
-
-* **Free SSL (Let's Encrypt)** ကို SPanel ထဲမှ တစ်ချက်နှိပ် (1-Click) ဖြင့် Enable လုပ်လိုက်ပါ။
+3. **Save** နှိပ်ပါ။
 
 ---
 
-## ၅။ စတင် အသုံးပြုခြင်း
+## အဆင့် (၅) — ပြီးစီးခြင်းနှင့် စတင် အသုံးပြုခြင်း 🎉
 
-* Browser မှ မိမိ၏ Domain ကို ဖွင့်ပါ: `https://bot.yourdomain.com`
-* Dashboard ရှိ **Settings -> Telegram Bot** တွင် Bot Token ကို ထည့်သွင်းပြီး **Save & Connect** နှိပ်သည်နှင့် Bot သည် Online ပေါ်တွင် ၂၄ နာရီ မနားတမ်း စတင် လည်ပတ်နေပါမည်! 🎉
+Browser မှနေ၍ အောက်ပါ Link ကို ဖွင့်ပါ-
+
+👉 **https://sbot.stechmm.app**
+
+* **Username**: `admin`
+* **Password**: `admin123`
+
+Dashboard သို့ ဝင်ရောက်ပြီး **Stores & Bots Hub** တွင် မိမိ Bot များကို ၂၄ နာရီ စတင် အသုံးပြုနိုင်ပါပြီ!
