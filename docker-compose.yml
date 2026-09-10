@@ -1,0 +1,23 @@
+services:
+  s-bot-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: s-bot-dashboard
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Yangon
+      - PROJECT_NAME=S-Bot Restaurant & Admin Dashboard
+    env_file:
+      - .env
+    volumes:
+      - ./backend/data.db:/app/backend/data.db
+      - ./backend/uploads:/app/backend/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/api/settings/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

@@ -50,6 +50,32 @@ python run_server.py
 
 ---
 
+---
+
+## ☁️ VPS / Server ပေါ်တွင် All-in-One တင်နည်း (Docker Deployment)
+
+Server (Ubuntu / Debian / CentOS / SPanel VPS) ပေါ်တွင် အောက်ပါ command ၃ ကြောင်းသာ run ပေးရုံဖြင့် **Docker မရှိသေးပါက အလိုအလျောက် သွင်းပေးပြီး Container ဖြင့် အသင့် run ပေးမည်ဖြစ်ပါသည်**:
+
+```bash
+# ၁။ GitHub မှ code ဆွဲယူပါ
+git clone https://github.com/stechmm/s-bot-restaurant-dashboard.git
+
+# ၂။ Folder ထဲ ဝင်ပါ
+cd s-bot-restaurant-dashboard
+
+# ၃။ All-in-One script ကို run ပါ (Docker ရှိရင် အလိုအလျောက် run မည်၊ မရှိရင် သွင်းပြီး run မည်)
+bash setup.sh
+```
+
+### စီမံခန့်ခွဲမှု Commands (Management):
+* **Logs ကြည့်ရန်**: `bash setup.sh logs`
+* **Restart ချရန်**: `bash setup.sh restart`
+* **ရပ်တန့်ရန်**: `bash setup.sh stop`
+* **Code အသစ် update လုပ်ရန်**: `bash setup.sh update`
+* **Status ကြည့်ရန်**: `bash setup.sh status`
+
+---
+
 ## 🤖 Telegram Bot Token ချိတ်ဆက်နည်း
 
 1. Telegram တွင် **@BotFather** ကို ဖွင့်ပါ။
