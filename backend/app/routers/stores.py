@@ -102,6 +102,43 @@ async def create_store(payload: StoreCreate):
         await session.commit()
         await session.refresh(new_store)
 
+    # Auto-seed starter categories based on business type
+    DEFAULT_CATEGORIES_BY_TYPE = {
+        "restaurant": [
+            ("အဓိက ဟင်းလျာများ", "🍲", "Main Dishes & Rice"),
+            ("အကြော်နှင့် အမြည်းများ", "🍢", "Snacks & Appetizers"),
+            ("အဖျော်ယမကာနှင့် အအေး", "🥤", "Beverages & Drinks"),
+            ("အချိုပွဲများ", "🍨", "Desserts & Sweets")
+        ],
+        "retail": [
+            ("အမျိုးသား ဝတ်စုံများ", "👔", "Men's Fashion & Wear"),
+            ("အမျိုးသမီး ဝတ်စုံများ", "👗", "Women's Fashion & Dresses"),
+            ("ဖိနပ်နှင့် အိတ်များ", "👠", "Shoes & Bags"),
+            ("အလှကုန်နှင့် အသုံးအဆောင်", "💄", "Cosmetics & Accessories")
+        ],
+        "service": [
+            ("ဝန်ဆောင်မှု ပက်ကေ့ခ်ျများ", "⭐", "Service Packages"),
+            ("အထူး လျှော့စျေး အစီအစဉ်", "🏷️", "Special Promotions")
+        ],
+        "general": [
+            ("လူကြိုက်များသော ပစ္စည်းများ", "🔥", "Best Sellers"),
+            ("ကုန်ပစ္စည်း အသစ်များ", "✨", "New Arrivals")
+        ]
+    }
+
+    async with AsyncSessionLocal() as cat_session:
+        from app.models.models import Category
+        cats_to_create = DEFAULT_CATEGORIES_BY_TYPE.get(new_store.business_type, DEFAULT_CATEGORIES_BY_TYPE["general"])
+        for cat_name, cat_icon, cat_desc in cats_to_create:
+            cat_session.add(Category(
+                store_id=new_store.id,
+                name=cat_name,
+                icon=cat_icon,
+                description=cat_desc,
+                is_active=True
+            ))
+        await cat_session.commit()
+
     # If bot token provided and active, start the bot instance
     if new_store.is_active and new_store.bot_token:
         try:

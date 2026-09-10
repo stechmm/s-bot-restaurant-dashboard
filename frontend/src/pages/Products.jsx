@@ -12,8 +12,10 @@ import {
   X
 } from 'lucide-react';
 import api from '../api/client';
+import { useStore } from '../context/StoreContext';
 
 export default function Products({ lang }) {
+  const { stores, activeStore, activeStoreId, switchStore } = useStore();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCat, setSelectedCat] = useState('all');
@@ -53,6 +55,7 @@ export default function Products({ lang }) {
       ]);
       setProducts(prodsRes.data);
       setCategories(catsRes.data);
+      setSelectedCat('all');
     } catch (err) {
       console.error(err);
     } finally {
@@ -62,7 +65,7 @@ export default function Products({ lang }) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeStoreId]);
 
   const openAddModal = () => {
     setEditingProduct(null);
@@ -160,7 +163,19 @@ export default function Products({ lang }) {
       setCatForm({ name: '', icon: '📦', description: '' });
       fetchData();
     } catch (err) {
-      alert('Error saving category');
+      alert('Error saving category: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDeleteCategory = async (catId, catName, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`'${catName}' အမျိုးအစားကို ဖျက်ရန် သေချာပါသလား?`)) return;
+    try {
+      await api.delete(`/products/categories/${catId}`);
+      if (selectedCat === catId.toString()) setSelectedCat('all');
+      fetchData();
+    } catch (err) {
+      alert('Error deleting category: ' + (err.response?.data?.detail || err.message));
     }
   };
 
@@ -176,21 +191,43 @@ export default function Products({ lang }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            {lang === 'mm' ? 'ကုန်ပစ္စည်းများ စီမံခန့်ခွဲခြင်း' : 'Product & Catalog Management'}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-white tracking-tight">
+              {lang === 'mm' ? 'ကုန်ပစ္စည်းများ စီမံခန့်ခွဲခြင်း' : 'Product & Catalog Management'}
+            </h2>
+            {activeStore && (
+              <span className="px-3 py-0.5 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                🏪 {activeStore.name} ({activeStore.business_type})
+              </span>
+            )}
+          </div>
           <p className="text-slate-400 text-xs mt-1">
-            {lang === 'mm' ? 'Bot တွင် ပြသမည့် ပစ္စည်းများနှင့် အမျိုးအစားများကို စီမံနိုင်ပါသည်' : 'Manage your items shown in Telegram Shop'}
+            {lang === 'mm' ? 'ရွေးချယ်ထားသော ဆိုင်အတွက် ကုန်ပစ္စည်းများနှင့် အမျိုးအစားများကို စီမံနိုင်ပါသည်' : 'Manage categories and products for the selected store'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* In-page Store Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={activeStoreId || ''}
+              onChange={(e) => switchStore(e.target.value)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold border border-slate-700 outline-none cursor-pointer"
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  🏪 {s.name} ({s.business_type})
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button
             onClick={() => setIsCatModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 transition"
           >
             <Layers className="w-4 h-4 text-sky-400" />
-            <span>{lang === 'mm' ? 'အမျိုးအစား ထည့်မည်' : 'New Category'}</span>
+            <span>{lang === 'mm' ? 'အမျိုးအစား အသစ်ထည့်မည်' : 'New Category'}</span>
           </button>
           <button
             onClick={openAddModal}
@@ -217,19 +254,35 @@ export default function Products({ lang }) {
             {lang === 'mm' ? 'အားလုံး' : 'All Products'} ({products.length})
           </button>
           {categories.map((cat) => (
-            <button
+            <div
               key={cat.id}
-              onClick={() => setSelectedCat(cat.id.toString())}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+              className={`group flex items-center rounded-xl text-xs font-semibold whitespace-nowrap transition ${
                 selectedCat === cat.id.toString()
                   ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
               }`}
             >
-              <span>{cat.icon}</span>
-              <span>{cat.name}</span>
-            </button>
+              <button
+                onClick={() => setSelectedCat(cat.id.toString())}
+                className="px-3.5 py-1.5 flex items-center gap-1.5"
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.name}</span>
+              </button>
+              <button
+                onClick={(e) => handleDeleteCategory(cat.id, cat.name, e)}
+                title={lang === 'mm' ? 'အမျိုးအစား ဖျက်ရန်' : 'Delete Category'}
+                className="pr-2.5 pl-0.5 text-slate-400 hover:text-rose-400 opacity-60 group-hover:opacity-100 transition"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           ))}
+          {categories.length === 0 && (
+            <span className="text-xs text-slate-500 italic px-2">
+              {lang === 'mm' ? 'ဤဆိုင်အတွက် Category မရှိသေးပါ (အမျိုးအစား အသစ်ထည့်ပါ)' : 'No categories yet for this store (Click New Category)'}
+            </span>
+          )}
         </div>
 
         {/* Search Input */}
