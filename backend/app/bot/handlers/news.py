@@ -85,6 +85,6 @@ async def news_detail_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 def register_news_handlers(app: Application):
     app.add_handler(CommandHandler("news", show_news_list))
-    app.add_handler(MessageHandler(filters.Regex("^📰 သတင်းများ \(News\)$"), show_news_list))
+    app.add_handler(MessageHandler(filters.Regex(r"^(📰 သတင်းများ \(News\)|📰 သတင်းနှင့် ပရိုမိုးရှင်း)$"), show_news_list))
     app.add_handler(CallbackQueryHandler(show_news_list, pattern="^back_news$"))
     app.add_handler(CallbackQueryHandler(news_detail_handler, pattern="^news_"))

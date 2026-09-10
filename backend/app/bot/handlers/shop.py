@@ -19,6 +19,7 @@ CHECKOUT_NAME, CHECKOUT_PHONE, CHECKOUT_ADDRESS, CHECKOUT_PAYMENT, CHECKOUT_SLIP
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     store_id = context.bot_data.get("store_id", 1)
+    business_type = context.bot_data.get("business_type", "restaurant")
     await get_or_create_user(update.effective_user, store_id=store_id)
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -27,16 +28,25 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
         categories = result.scalars().all()
 
     if not categories:
-        await update.message.reply_text("ယခုအချိန်တွင် ကုန်ပစ္စည်း အမျိုးအစားများ မရှိသေးပါ။")
+        empty_text = "ယခုအချိန်တွင် မီနူး အမျိုးအစားများ မရှိသေးပါ။" if business_type == "restaurant" else "ယခုအချိန်တွင် ကုန်ပစ္စည်း အမျိုးအစားများ မရှိသေးပါ။"
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.message.reply_text(empty_text)
+        else:
+            await update.message.reply_text(empty_text)
         return
 
     keyboard = []
+    default_icon = "🍽️" if business_type == "restaurant" else "📦"
     for cat in categories:
-        keyboard.append([InlineKeyboardButton(f"{cat.icon or '📦'} {cat.name}", callback_data=f"cat_{cat.id}")])
+        keyboard.append([InlineKeyboardButton(f"{cat.icon or default_icon} {cat.name}", callback_data=f"cat_{cat.id}")])
     keyboard.append([InlineKeyboardButton("🛒 ခြင်းတောင်း ကြည့်ရန် (Cart)", callback_data="view_cart")])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    msg_text = "🛍️ <b>ကုန်ပစ္စည်း အမျိုးအစားများ (Categories)</b>\n\nမိမိကြည့်ရှုလိုသော အမျိုးအစားကို ရွေးချယ်ပါ-"
+    if business_type == "restaurant":
+        msg_text = "🍲 <b>မီနူး အမျိုးအစားများ (Menu Categories)</b>\n\nမိမိမှာယူလိုသော အမျိုးအစားကို ရွေးချယ်ပါ-"
+    else:
+        msg_text = "🛍️ <b>ကုန်ပစ္စည်း အမျိုးအစားများ (Categories)</b>\n\nမိမိကြည့်ရှုလိုသော အမျိုးအစားကို ရွေးချယ်ပါ-"
     
     if update.callback_query:
         await update.callback_query.answer()
@@ -55,10 +65,13 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         prod_result = await session.execute(select(Product).where(Product.category_id == cat_id, Product.is_active == True))
         products = prod_result.scalars().all()
 
+    business_type = context.bot_data.get("business_type", "restaurant")
     if not products:
         keyboard = [[InlineKeyboardButton("🔙 အမျိုးအစားများသို့ ပြန်သွားရန်", callback_data="back_categories")]]
+        empty_text = "ဤအမျိုးအစားတွင် ဟင်းလျာများ မရှိသေးပါ။" if business_type == "restaurant" else "ဤအမျိုးအစားတွင် ပစ္စည်းများ မရှိသေးပါ။"
+        cat_icon = "🍽️" if business_type == "restaurant" else "📦"
         await query.edit_message_text(
-            f"📦 <b>{category.name if category else 'Category'}</b>\n\nဤအမျိုးအစားတွင် ပစ္စည်းမရှိသေးပါ။",
+            f"{cat_icon} <b>{category.name if category else 'Category'}</b>\n\n{empty_text}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="HTML"
         )
@@ -70,8 +83,10 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("🔙 အမျိုးအစားများသို့ ပြန်သွားရန်", callback_data="back_categories")])
     keyboard.append([InlineKeyboardButton("🛒 ခြင်းတောင်း ကြည့်ရန်", callback_data="view_cart")])
 
+    cat_icon = "🍽️" if business_type == "restaurant" else "📦"
+    select_prompt = "မှာယူလိုသော ဟင်းလျာကို ရွေးချယ်ပါ-" if business_type == "restaurant" else "ကြည့်ရှုလိုသော ကုန်ပစ္စည်းကို ရွေးချယ်ပါ-"
     await query.edit_message_text(
-        f"📦 <b>{category.name if category else 'Category'}</b>\n\nကြည့်ရှုလိုသော ကုန်ပစ္စည်းကို ရွေးချယ်ပါ-",
+        f"{cat_icon} <b>{category.name if category else 'Category'}</b>\n\n{select_prompt}",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -104,12 +119,13 @@ async def product_detail_callback(update: Update, context: ContextTypes.DEFAULT_
     if not is_restaurant:
         text += f"📦 <b>လက်ကျန်:</b> {prod.stock} ခု\n"
 
+    back_label = "🔙 ဟင်းလျာစာရင်းသို့" if is_restaurant else "🔙 ကုန်ပစ္စည်းစာရင်းသို့"
     keyboard = [
         [
             InlineKeyboardButton("➕ ခြင်းတောင်းထဲထည့်မည် (Add to Cart)", callback_data=f"add_cart_{prod.id}"),
         ],
         [
-            InlineKeyboardButton("🔙 ကုန်ပစ္စည်းစာရင်းသို့", callback_data=f"cat_{prod.category_id}" if prod.category_id else "back_categories"),
+            InlineKeyboardButton(back_label, callback_data=f"cat_{prod.category_id}" if prod.category_id else "back_categories"),
             InlineKeyboardButton("🛒 ခြင်းတောင်း", callback_data="view_cart")
         ]
     ]
@@ -150,6 +166,7 @@ async def add_to_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await get_or_create_user(update.effective_user)
+    business_type = context.bot_data.get("business_type", "restaurant")
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -158,16 +175,23 @@ async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
         items = result.scalars().all()
 
     if not items:
-        msg = "🛒 <b>သင့်ခြင်းတောင်း (Cart) သည် လက်ရှိတွင် ဗလာဖြစ်နေပါသည်။</b>\n\nပစ္စည်းများ ရွေးချယ်ဝယ်ယူရန် '🛍️ ကုန်ပစ္စည်းများ' ကို နှိပ်ပါ။"
+        if business_type == "restaurant":
+            msg = "🛒 <b>သင့်ခြင်းတောင်း (Cart) သည် လက်ရှိတွင် ဗလာဖြစ်နေပါသည်။</b>\n\nဟင်းလျာများ ရွေးချယ်မှာယူရန် '🍲 မီနူးနှင့် ဟင်းလျာများ' ကို နှိပ်ပါ။"
+            btn_text = "🍲 မီနူးကြည့်ရှုမည်"
+        else:
+            msg = "🛒 <b>သင့်ခြင်းတောင်း (Cart) သည် လက်ရှိတွင် ဗလာဖြစ်နေပါသည်။</b>\n\nပစ္စည်းများ ရွေးချယ်ဝယ်ယူရန် '🛍️ ကုန်ပစ္စည်းများ' ကို နှိပ်ပါ။"
+            btn_text = "🛍️ စျေးဝယ်မည်"
+
         if update.callback_query:
             await update.callback_query.answer()
-            keyboard = [[InlineKeyboardButton("🛍️ စျေးဝယ်မည်", callback_data="back_categories")]]
+            keyboard = [[InlineKeyboardButton(btn_text, callback_data="back_categories")]]
             await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         else:
             await update.message.reply_text(msg, parse_mode="HTML")
         return
 
-    text = "🛒 <b>သင့်ခြင်းတောင်းထဲရှိ ပစ္စည်းများ:</b>\n\n"
+    cart_header = "🛒 <b>သင်မှာယူထားသော ဟင်းလျာများ (Cart):</b>\n\n" if business_type == "restaurant" else "🛒 <b>သင့်ခြင်းတောင်းထဲရှိ ပစ္စည်းများ:</b>\n\n"
+    text = cart_header
     total = 0.0
     keyboard = []
 
@@ -179,10 +203,11 @@ async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"\n━━━━━━━━━━━━━━━━━━━━\n"
     text += f"💵 <b>စုစုပေါင်း ကျသင့်ငွေ: {total:,.0f} MMK</b>\n"
 
+    continue_label = "🍲 ဟင်းလျာများ ထပ်မံရွေးမည်" if business_type == "restaurant" else "🛍️ ဆက်လက်ဝယ်ယူမည်"
     keyboard.append([InlineKeyboardButton("✅ အော်ဒါတင်မည် (Checkout)", callback_data="start_checkout")])
     keyboard.append([
         InlineKeyboardButton("🗑️ ခြင်းတောင်းရှင်းမည်", callback_data="clear_cart"),
-        InlineKeyboardButton("🛍️ ဆက်လက်ဝယ်ယူမည်", callback_data="back_categories")
+        InlineKeyboardButton(continue_label, callback_data="back_categories")
     ])
 
     if update.callback_query:
@@ -195,12 +220,14 @@ async def clear_cart_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer("ခြင်းတောင်း ရှင်းလင်းပြီးပါပြီ!", show_alert=True)
     user = await get_or_create_user(update.effective_user)
+    business_type = context.bot_data.get("business_type", "restaurant")
 
     async with AsyncSessionLocal() as session:
         await session.execute(delete(CartItem).where(CartItem.user_id == user.id))
         await session.commit()
 
-    keyboard = [[InlineKeyboardButton("🛍️ ကုန်ပစ္စည်းများ ကြည့်ရှုမည်", callback_data="back_categories")]]
+    browse_label = "🍲 မီနူးကြည့်ရှုမည်" if business_type == "restaurant" else "🛍️ ကုန်ပစ္စည်းများ ကြည့်ရှုမည်"
+    keyboard = [[InlineKeyboardButton(browse_label, callback_data="back_categories")]]
     await query.edit_message_text(
         "🛒 သင့်ခြင်းတောင်းကို ရှင်းလင်းပြီးပါပြီ။",
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -377,21 +404,24 @@ async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, sli
         f"အော်ဒါကို ဆိုင်မှ အမြန်ဆုံး အတည်ပြုပေးပါမည်။ ကျေးဇူးတင်ရှိပါသည်! 🙏"
     )
 
+    business_type = context.bot_data.get("business_type", "restaurant")
     if update.callback_query:
-        await update.callback_query.message.reply_text(success_text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+        await update.callback_query.message.reply_text(success_text, reply_markup=get_main_keyboard(business_type), parse_mode="HTML")
     else:
-        await update.message.reply_text(success_text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+        await update.message.reply_text(success_text, reply_markup=get_main_keyboard(business_type), parse_mode="HTML")
 
     context.user_data.clear()
     return ConversationHandler.END
 
 async def checkout_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("အော်ဒါတင်ခြင်းကို ပယ်ဖျက်လိုက်ပါသည်။", reply_markup=get_main_keyboard())
+    business_type = context.bot_data.get("business_type", "restaurant")
+    await update.message.reply_text("အော်ဒါတင်ခြင်းကို ပယ်ဖျက်လိုက်ပါသည်။", reply_markup=get_main_keyboard(business_type))
     return ConversationHandler.END
 
 async def my_orders_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     store_id = context.bot_data.get("store_id", 1)
+    business_type = context.bot_data.get("business_type", "restaurant")
     user = await get_or_create_user(update.effective_user, store_id=store_id)
 
     async with AsyncSessionLocal() as session:
@@ -401,10 +431,11 @@ async def my_orders_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         orders = result.scalars().all()
 
     if not orders:
-        await update.message.reply_text("📦 သင်သည် အော်ဒါတင်ထားခြင်း မရှိသေးပါ။")
+        empty_orders = "📋 သင်သည် အော်ဒါတင်ထားခြင်း မရှိသေးပါ။" if business_type == "restaurant" else "📦 သင်သည် အော်ဒါတင်ထားခြင်း မရှိသေးပါ။"
+        await update.message.reply_text(empty_orders)
         return
 
-    text = "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
+    text = "📋 <b>သင်၏ နောက်ဆုံး မှာယူထားသော အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n" if business_type == "restaurant" else "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
     status_emojis = {
         "Pending": "⏳",
         "Confirmed": "✅",
@@ -482,7 +513,8 @@ async def back_my_orders_callback(update: Update, context: ContextTypes.DEFAULT_
         "Pending": "⏳", "Confirmed": "✅", "Cooking": "👨‍🍳",
         "Out for Delivery": "🚚", "Delivered": "🎉", "Cancelled": "❌"
     }
-    text = "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
+    business_type = context.bot_data.get("business_type", "restaurant")
+    text = "📋 <b>သင်၏ နောက်ဆုံး မှာယူထားသော အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n" if business_type == "restaurant" else "📦 <b>သင်၏ နောက်ဆုံး အော်ဒါမှတ်တမ်းများ:</b>\n\nကြည့်ရှုလိုသော Order ကို နှိပ်ပါ-\n"
     keyboard = []
     for ord in orders:
         emoji = status_emojis.get(ord.status, "📌")
@@ -494,9 +526,9 @@ async def back_my_orders_callback(update: Update, context: ContextTypes.DEFAULT_
 
 def register_shop_handlers(app: Application):
     # Main menu buttons
-    app.add_handler(MessageHandler(filters.Regex("^🛍️ ကုန်ပစ္စည်းများ \(Shop\)$"), show_categories))
-    app.add_handler(MessageHandler(filters.Regex("^🛒 ခြင်းတောင်း \(Cart\)$"), view_cart))
-    app.add_handler(MessageHandler(filters.Regex("^📦 My Orders$"), my_orders_handler))
+    app.add_handler(MessageHandler(filters.Regex(r"^(🛍️ ကုန်ပစ္စည်းများ \(Shop\)|🍲 မီနူးနှင့် ဟင်းလျာများ \(Menu\)|🍲 ဟင်းလျာများ \(Menu\)|🍽️ မီနူးများ \(Menu\))$"), show_categories))
+    app.add_handler(MessageHandler(filters.Regex(r"^(🛒 ခြင်းတောင်း \(Cart\)|🛒 မှာယူထားသည်များ \(Cart\))$"), view_cart))
+    app.add_handler(MessageHandler(filters.Regex(r"^(📦 My Orders|📋 မှာယူထားသော အော်ဒါများ|📋 သင့်အော်ဒါများ)$"), my_orders_handler))
 
     # Inline callbacks
     app.add_handler(CallbackQueryHandler(show_categories, pattern="^back_categories$"))

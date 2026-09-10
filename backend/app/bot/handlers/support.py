@@ -111,9 +111,10 @@ async def start_live_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def live_chat_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text in ["/exit", "🚪 ထွက်မည်", "/stop", "exit"]:
+        business_type = context.bot_data.get("business_type", "restaurant")
         await update.message.reply_text(
             "👋 Live Chat မှ ထွက်လိုက်ပါပြီ။ ကျေးဇူးတင်ရှိပါသည်!",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(business_type)
         )
         return ConversationHandler.END
 
@@ -140,11 +141,12 @@ async def live_chat_message_handler(update: Update, context: ContextTypes.DEFAUL
     return SUPPORT_CHAT_STATE
 
 async def live_chat_exit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Live Chat မှ ထွက်လိုက်ပါပြီ။", reply_markup=get_main_keyboard())
+    business_type = context.bot_data.get("business_type", "restaurant")
+    await update.message.reply_text("👋 Live Chat မှ ထွက်လိုက်ပါပြီ။", reply_markup=get_main_keyboard(business_type))
     return ConversationHandler.END
 
 def register_support_handlers(app: Application):
-    app.add_handler(MessageHandler(filters.Regex("^💬 Customer Support$"), support_menu_handler))
+    app.add_handler(MessageHandler(filters.Regex("^(💬 Customer Support|💬 ဆိုင်သို့ မေးမြန်းရန်|💬 စားသောက်ဆိုင်သို့ ဆက်သွယ်ရန်)$"), support_menu_handler))
     app.add_handler(CallbackQueryHandler(support_menu_handler, pattern="^back_support$"))
     app.add_handler(CallbackQueryHandler(faq_list_handler, pattern="^faq_list$"))
     app.add_handler(CallbackQueryHandler(faq_answer_handler, pattern="^faq_ans_"))

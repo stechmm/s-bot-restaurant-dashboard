@@ -5,12 +5,19 @@ from app.core.database import AsyncSessionLocal
 from app.models.models import BotUser
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 
-def get_main_keyboard():
-    keyboard = [
-        [KeyboardButton("🛍️ ကုန်ပစ္စည်းများ (Shop)"), KeyboardButton("🛒 ခြင်းတောင်း (Cart)")],
-        [KeyboardButton("💬 Customer Support"), KeyboardButton("📰 သတင်းများ (News)")],
-        [KeyboardButton("📦 My Orders"), KeyboardButton("ℹ️ ဆိုင်အချက်အလက် (About)")]
-    ]
+def get_main_keyboard(business_type: str = "restaurant"):
+    if business_type == "restaurant":
+        keyboard = [
+            [KeyboardButton("🍲 မီနူးနှင့် ဟင်းလျာများ (Menu)"), KeyboardButton("🛒 ခြင်းတောင်း (Cart)")],
+            [KeyboardButton("💬 Customer Support"), KeyboardButton("📰 သတင်းများ (News)")],
+            [KeyboardButton("📋 မှာယူထားသော အော်ဒါများ"), KeyboardButton("ℹ️ ဆိုင်အချက်အလက် (About)")]
+        ]
+    else:
+        keyboard = [
+            [KeyboardButton("🛍️ ကုန်ပစ္စည်းများ (Shop)"), KeyboardButton("🛒 ခြင်းတောင်း (Cart)")],
+            [KeyboardButton("💬 Customer Support"), KeyboardButton("📰 သတင်းများ (News)")],
+            [KeyboardButton("📦 My Orders"), KeyboardButton("ℹ️ ဆိုင်အချက်အလက် (About)")]
+        ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 async def get_or_create_user(tg_user, store_id: Optional[int] = 1) -> BotUser:
