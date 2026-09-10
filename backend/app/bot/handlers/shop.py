@@ -18,9 +18,12 @@ logger = logging.getLogger("telegram_bot")
 CHECKOUT_NAME, CHECKOUT_PHONE, CHECKOUT_ADDRESS, CHECKOUT_PAYMENT, CHECKOUT_SLIP = range(5)
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    await get_or_create_user(update.effective_user, store_id=store_id)
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Category).where(Category.is_active == True))
+        result = await session.execute(
+            select(Category).where(Category.store_id == store_id, Category.is_active == True)
+        )
         categories = result.scalars().all()
 
     if not categories:
@@ -272,7 +275,8 @@ async def checkout_slip_step(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return await finalize_order(update, context, slip_url=slip_url)
 
 async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, slip_url=None):
-    user = await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
     name = context.user_data.get("order_name", user.first_name or "Customer")
     phone = context.user_data.get("order_phone", "-")
     address = context.user_data.get("order_address", "-")
@@ -296,6 +300,7 @@ async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, sli
         total_amount = sum(item.product.price * item.quantity for item in cart_items)
 
         order = Order(
+            store_id=store_id,
             order_code=order_code,
             user_id=user.id,
             customer_name=name,
@@ -326,11 +331,10 @@ async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, sli
         await session.commit()
 
     # --- Notify Admin via Telegram ---
-    from app.bot.bot_service import bot_service
     from app.core.config import settings
     try:
-        admin_chat_id = settings.ADMIN_TELEGRAM_ID or settings.SUPPORT_NOTIFICATION_CHAT_ID
-        if admin_chat_id and bot_service.application:
+        admin_chat_id = context.bot_data.get("admin_telegram_id") or settings.ADMIN_TELEGRAM_ID or settings.SUPPORT_NOTIFICATION_CHAT_ID
+        if admin_chat_id:
             items_summary = ""
             for item in cart_items:
                 items_summary += f"  • {item.product.name} x{item.quantity} = {item.product.price * item.quantity:,.0f} MMK\n"
@@ -345,7 +349,7 @@ async def finalize_order(update: Update, context: ContextTypes.DEFAULT_TYPE, sli
                 f"💵 <b>စုစုပေါင်း: {total_amount:,.0f} MMK</b>\n\n"
                 f"⏳ Dashboard မှ Order ကို Confirm လုပ်ပေးပါ!"
             )
-            await bot_service.application.bot.send_message(
+            await context.bot.send_message(
                 chat_id=int(admin_chat_id),
                 text=admin_msg,
                 parse_mode="HTML"
@@ -379,11 +383,12 @@ async def checkout_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def my_orders_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc()).limit(5)
+            select(Order).where(Order.user_id == user.id, Order.store_id == store_id).order_by(Order.created_at.desc()).limit(5)
         )
         orders = result.scalars().all()
 

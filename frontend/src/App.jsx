@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
+import Stores from './pages/Stores';
 import Products from './pages/Products';
 import Orders from './pages/Orders';
 import SupportChat from './pages/SupportChat';
@@ -10,13 +11,13 @@ import UsersList from './pages/UsersList';
 import Settings from './pages/Settings';
 import Coupons from './pages/Coupons';
 import Reviews from './pages/Reviews';
+import { StoreProvider } from './context/StoreContext';
 import api from './api/client';
 
-export default function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [lang, setLang] = useState('mm'); // 'mm' | 'en'
   const [theme, setTheme] = useState(() => localStorage.getItem('app_theme') || 'dark');
-  const [botStatus, setBotStatus] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingOrders, setPendingOrders] = useState(0);
 
@@ -32,13 +33,9 @@ export default function App() {
     }
   }, [theme]);
 
-  const fetchStatus = async () => {
+  const fetchStats = async () => {
     try {
-      const [setRes, statsRes] = await Promise.all([
-        api.get('/settings/'),
-        api.get('/stats/overview')
-      ]);
-      setBotStatus(setRes.data.bot_is_running);
+      const statsRes = await api.get('/stats/overview');
       setUnreadCount(statsRes.data.unread_messages || 0);
       setPendingOrders(statsRes.data.pending_orders || 0);
     } catch (err) {
@@ -47,23 +44,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    fetchStats();
+    const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleToggleBot = async () => {
-    try {
-      if (botStatus) {
-        await api.post('/settings/bot/stop');
-      } else {
-        await api.post('/settings/bot/start');
-      }
-      fetchStatus();
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Error toggling bot');
-    }
-  };
 
   const isDark = theme === 'dark';
 
@@ -84,18 +68,18 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar
-          botStatus={botStatus}
-          onToggleBot={handleToggleBot}
           lang={lang}
           setLang={setLang}
           theme={theme}
           setTheme={setTheme}
+          onManageStores={() => setActiveTab('stores')}
         />
 
         <main className={`flex-1 overflow-y-auto ${
           isDark ? 'bg-slate-950/60' : 'bg-slate-50/80'
         }`}>
           {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} lang={lang} theme={theme} />}
+          {activeTab === 'stores' && <Stores lang={lang} theme={theme} />}
           {activeTab === 'products' && <Products lang={lang} theme={theme} />}
           {activeTab === 'orders' && <Orders lang={lang} theme={theme} />}
           {activeTab === 'support' && <SupportChat lang={lang} theme={theme} />}
@@ -103,16 +87,17 @@ export default function App() {
           {activeTab === 'coupons' && <Coupons lang={lang} theme={theme} />}
           {activeTab === 'reviews' && <Reviews lang={lang} theme={theme} />}
           {activeTab === 'users' && <UsersList lang={lang} theme={theme} />}
-          {activeTab === 'settings' && (
-            <Settings
-              lang={lang}
-              botStatus={botStatus}
-              onToggleBot={handleToggleBot}
-              theme={theme}
-            />
-          )}
+          {activeTab === 'settings' && <Settings lang={lang} theme={theme} />}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <StoreProvider>
+      <AppContent />
+    </StoreProvider>
   );
 }

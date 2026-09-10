@@ -5,6 +5,15 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// Request interceptor to automatically attach active store ID
+api.interceptors.request.use((config) => {
+  const activeStoreId = localStorage.getItem('active_store_id');
+  if (activeStoreId) {
+    config.headers['X-Store-Id'] = activeStoreId;
+  }
+  return config;
+});
+
 // Response interceptor for easy error logging
 api.interceptors.response.use(
   (response) => response,

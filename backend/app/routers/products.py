@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.models import Category, Product
 from app.schemas.schemas import CategoryCreate, CategoryOut, ProductCreate, ProductOut
+from app.routers.deps import get_store_id
 
 router = APIRouter(prefix="/products", tags=["Products & Categories"])
 
@@ -17,13 +18,23 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # --- Category Endpoints ---
 @router.get("/categories", response_model=List[CategoryOut])
-async def list_categories(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Category).order_by(Category.id.desc()))
+async def list_categories(
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(Category).order_by(Category.id.desc())
+    if store_id is not None:
+        query = query.where(Category.store_id == store_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.post("/categories", response_model=CategoryOut)
-async def create_category(payload: CategoryCreate, db: AsyncSession = Depends(get_db)):
-    category = Category(**payload.model_dump())
+async def create_category(
+    payload: CategoryCreate,
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
+    category = Category(**payload.model_dump(), store_id=store_id or 1)
     db.add(category)
     await db.commit()
     await db.refresh(category)
@@ -54,8 +65,14 @@ async def delete_category(cat_id: int, db: AsyncSession = Depends(get_db)):
 
 # --- Product Endpoints ---
 @router.get("/", response_model=List[ProductOut])
-async def list_products(category_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+async def list_products(
+    category_id: Optional[int] = None,
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
     query = select(Product).options(selectinload(Product.category)).order_by(Product.id.desc())
+    if store_id is not None:
+        query = query.where(Product.store_id == store_id)
     if category_id:
         query = query.where(Product.category_id == category_id)
     result = await db.execute(query)
@@ -70,8 +87,12 @@ async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     return product
 
 @router.post("/", response_model=ProductOut)
-async def create_product(payload: ProductCreate, db: AsyncSession = Depends(get_db)):
-    product = Product(**payload.model_dump())
+async def create_product(
+    payload: ProductCreate,
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
+    product = Product(**payload.model_dump(), store_id=store_id or 1)
     db.add(product)
     await db.commit()
     result = await db.execute(select(Product).options(selectinload(Product.category)).where(Product.id == product.id))

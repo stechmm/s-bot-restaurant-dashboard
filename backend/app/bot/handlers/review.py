@@ -30,7 +30,7 @@ async def ask_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     ]
     await query.edit_message_text(
         "⭐ <b>အကဲဖြတ်ချက် ပေးခြင်း</b>\n\n"
-        "ကျွန်တော်တို့၏ ဝန်ဆောင်မှုနှင့် အစားအစာများ မည်မျှကောင်းမွန်ပါသနည်း?\n"
+        "ကျွန်တော်တို့၏ ဝန်ဆောင်မှုနှင့် ကုန်ပစ္စည်းများ မည်မျှကောင်းမွန်ပါသနည်း?\n"
         "ကြယ်ပွင့် ရွေးချယ်ပေးပါ-",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
@@ -44,18 +44,20 @@ async def rate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rating_str = parts[2]
 
     if rating_str == "skip":
-        await query.edit_message_text("ကျေးဇူးတင်ပါသည်! 🙏 နောက်ကြိမ်လည်း S-Bot ကိုမှာကြပါ။")
+        await query.edit_message_text("ကျေးဇူးတင်ပါသည်! 🙏 နောက်ကြိမ်လည်း အားပေးပါအုံးခင်ဗျာ။")
         return
 
     rating = int(rating_str)
     stars = "⭐" * rating
+    store_id = context.bot_data.get("store_id", 1)
 
     # Store review in DB
     from app.bot.utils import get_or_create_user
-    user = await get_or_create_user(update.effective_user)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
 
     async with AsyncSessionLocal() as session:
         rev = Review(
+            store_id=store_id,
             order_id=order_id,
             user_id=user.id,
             rating=rating,
@@ -69,7 +71,6 @@ async def rate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"သင်၏ တုံ့ပြန်ချက်သည် ကျွန်တော်တို့ တိုးတက်ကောင်းမွန်ရန် အထောက်အကူဖြစ်ပါသည်။",
         parse_mode="HTML"
     )
-
 
 def register_review_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(ask_review_callback, pattern="^review_start_"))

@@ -7,7 +7,8 @@ class BotUser(Base):
     __tablename__ = "bot_users"
     
     id = Column(Integer, primary_key=True, index=True)
-    telegram_id = Column(BigInteger, unique=True, index=True, nullable=False)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
+    telegram_id = Column(BigInteger, index=True, nullable=False)
     username = Column(String(100), nullable=True)
     first_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=True)
@@ -24,17 +25,20 @@ class Category(Base):
     __tablename__ = "categories"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     icon = Column(String(20), default="📦")
     is_active = Column(Boolean, default=True)
     
+    store = relationship("Store", back_populates="categories")
     products = relationship("Product", back_populates="category", cascade="all, delete-orphan")
 
 class Product(Base):
     __tablename__ = "products"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
@@ -44,6 +48,7 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
+    store = relationship("Store", back_populates="products")
     category = relationship("Category", back_populates="products")
 
 class CartItem(Base):
@@ -62,6 +67,7 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     order_code = Column(String(50), unique=True, index=True)
     user_id = Column(Integer, ForeignKey("bot_users.id", ondelete="SET NULL"), nullable=True)
     customer_name = Column(String(100), nullable=False)
@@ -70,11 +76,12 @@ class Order(Base):
     total_amount = Column(Float, nullable=False)
     payment_method = Column(String(50), default="COD") # COD, KPay, WavePay, Banking
     payment_slip_url = Column(String(500), nullable=True)
-    status = Column(String(50), default="Pending") # Pending, Confirmed, Shipped, Delivered, Cancelled
+    status = Column(String(50), default="Pending") # Pending, Confirmed, Cooking, Out for Delivery, Delivered, Cancelled
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     
+    store = relationship("Store", back_populates="orders")
     user = relationship("BotUser", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
@@ -95,6 +102,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     user_id = Column(Integer, ForeignKey("bot_users.id", ondelete="CASCADE"), nullable=False)
     sender = Column(String(20), default="user") # 'user', 'admin', 'bot'
     message = Column(Text, nullable=False)
@@ -108,6 +116,7 @@ class NewsPost(Base):
     __tablename__ = "news_posts"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     title = Column(String(250), nullable=False)
     content = Column(Text, nullable=False)
     image_url = Column(String(500), nullable=True)
@@ -121,6 +130,7 @@ class BroadcastLog(Base):
     __tablename__ = "broadcast_logs"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     message_text = Column(Text, nullable=False)
     image_url = Column(String(500), nullable=True)
     total_sent = Column(Integer, default=0)
@@ -132,6 +142,7 @@ class FAQ(Base):
     __tablename__ = "faqs"
     
     id = Column(Integer, primary_key=True, index=True)
+    store_id = Column(Integer, ForeignKey("stores.id", ondelete="CASCADE"), nullable=True, default=1)
     question = Column(String(300), nullable=False)
     answer = Column(Text, nullable=False)
     category = Column(String(100), default="General")

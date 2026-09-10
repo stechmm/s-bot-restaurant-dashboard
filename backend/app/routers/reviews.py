@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models.review import Review
 from app.models.models import BotUser, Order
+from app.routers.deps import get_store_id
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
@@ -17,26 +18,19 @@ class ReviewCreate(BaseModel):
     rating: int  # 1-5
     comment: Optional[str] = None
 
-class ReviewOut(BaseModel):
-    id: int
-    order_id: Optional[int]
-    user_id: Optional[int]
-    rating: int
-    comment: Optional[str]
-    created_at: datetime.datetime
-    user: Optional[dict] = None
-
-    class Config:
-        from_attributes = True
-
 @router.get("/", response_model=List[dict])
-async def list_reviews(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Review).options(
-            selectinload(Review.user),
-            selectinload(Review.order)
-        ).order_by(Review.created_at.desc())
-    )
+async def list_reviews(
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(Review).options(
+        selectinload(Review.user),
+        selectinload(Review.order)
+    ).order_by(Review.created_at.desc())
+    if store_id is not None:
+        query = query.where(Review.store_id == store_id)
+
+    result = await db.execute(query)
     reviews = result.scalars().all()
     out = []
     for r in reviews:
@@ -53,10 +47,14 @@ async def list_reviews(db: AsyncSession = Depends(get_db)):
     return out
 
 @router.post("/", response_model=dict)
-async def create_review(payload: ReviewCreate, db: AsyncSession = Depends(get_db)):
+async def create_review(
+    payload: ReviewCreate,
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
     if not 1 <= payload.rating <= 5:
         raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
-    review = Review(**payload.model_dump())
+    review = Review(**payload.model_dump(), store_id=store_id or 1)
     db.add(review)
     await db.commit()
     await db.refresh(review)

@@ -15,7 +15,8 @@ logger = logging.getLogger("telegram_bot")
 SUPPORT_CHAT_STATE = 1
 
 async def support_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    await get_or_create_user(update.effective_user, store_id=store_id)
 
     text = (
         "💬 <b>Customer Support ဝန်ဆောင်မှု</b>\n\n"
@@ -39,9 +40,12 @@ async def support_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def faq_list_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    store_id = context.bot_data.get("store_id", 1)
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(FAQ).where(FAQ.is_active == True).order_by(FAQ.order_index))
+        result = await session.execute(
+            select(FAQ).where(FAQ.store_id == store_id, FAQ.is_active == True).order_by(FAQ.order_index)
+        )
         faqs = result.scalars().all()
 
     if not faqs:
@@ -88,7 +92,8 @@ async def faq_answer_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def start_live_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
 
     welcome_msg = (
         "👨‍💼 <b>Support Agent နှင့် ချိတ်ဆက်ပြီးပါပြီ</b>\n\n"
@@ -112,11 +117,13 @@ async def live_chat_message_handler(update: Update, context: ContextTypes.DEFAUL
         )
         return ConversationHandler.END
 
-    user = await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
 
-    # Save to ChatMessage
+    # Save to ChatMessage with store_id
     async with AsyncSessionLocal() as session:
         msg = ChatMessage(
+            store_id=store_id,
             user_id=user.id,
             sender="user",
             message=text or "[Photo/Media]",

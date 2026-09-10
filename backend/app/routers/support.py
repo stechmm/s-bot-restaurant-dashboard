@@ -1,12 +1,13 @@
 import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, distinct
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.models import BotUser, ChatMessage
 from app.schemas.schemas import ChatMessageOut, ChatMessageCreate
-from app.bot.bot_service import bot_service
+from app.routers.deps import get_store_id
+from app.bot.multi_bot_manager import multi_bot_manager
 
 router = APIRouter(prefix="/support", tags=["Customer Support Live Chat"])
 
@@ -42,24 +43,41 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 @router.get("/conversations")
-async def get_conversations(db: AsyncSession = Depends(get_db)):
+async def get_conversations(
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
     # Get distinct users who have sent messages or have chats
     user_subq = select(distinct(ChatMessage.user_id))
-    result = await db.execute(select(BotUser).where(BotUser.id.in_(user_subq)))
+    if store_id is not None:
+        user_subq = user_subq.where(ChatMessage.store_id == store_id)
+
+    query = select(BotUser).where(BotUser.id.in_(user_subq))
+    if store_id is not None:
+        query = query.where(BotUser.store_id == store_id)
+
+    result = await db.execute(query)
     users = result.scalars().all()
 
     conversations = []
     for user in users:
         # Get latest message
-        latest_msg_res = await db.execute(
-            select(ChatMessage).where(ChatMessage.user_id == user.id).order_by(ChatMessage.created_at.desc()).limit(1)
-        )
+        msg_q = select(ChatMessage).where(ChatMessage.user_id == user.id)
+        if store_id is not None:
+            msg_q = msg_q.where(ChatMessage.store_id == store_id)
+        latest_msg_res = await db.execute(msg_q.order_by(ChatMessage.created_at.desc()).limit(1))
         latest_msg = latest_msg_res.scalar_one_or_none()
 
         # Unread count
-        unread = await db.scalar(
-            select(func.count(ChatMessage.id)).where(ChatMessage.user_id == user.id, ChatMessage.sender == "user", ChatMessage.is_read == False)
-        ) or 0
+        unread_q = select(func.count(ChatMessage.id)).where(
+            ChatMessage.user_id == user.id,
+            ChatMessage.sender == "user",
+            ChatMessage.is_read == False
+        )
+        if store_id is not None:
+            unread_q = unread_q.where(ChatMessage.store_id == store_id)
+
+        unread = await db.scalar(unread_q) or 0
 
         conversations.append({
             "user_id": user.id,
@@ -96,8 +114,11 @@ async def send_admin_reply(payload: ChatMessageCreate, db: AsyncSession = Depend
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    target_store_id = user.store_id or 1
+
     # Save to database
     chat_msg = ChatMessage(
+        store_id=target_store_id,
         user_id=user.id,
         sender="admin",
         message=payload.message,
@@ -108,11 +129,16 @@ async def send_admin_reply(payload: ChatMessageCreate, db: AsyncSession = Depend
     await db.commit()
     await db.refresh(chat_msg)
 
-    # Deliver via Telegram Bot to User
+    # Deliver via specific store's Telegram Bot to User
     formatted_msg = (
         f"👨‍💼 <b>Support Admin ထံမှ ပြန်ကြားစာ:</b>\n\n"
         f"{payload.message}"
     )
-    await bot_service.send_message_to_user(user.telegram_id, formatted_msg)
+    bot_app = multi_bot_manager.get_bot(target_store_id)
+    if bot_app and bot_app.bot:
+        try:
+            await bot_app.bot.send_message(chat_id=user.telegram_id, text=formatted_msg, parse_mode="HTML")
+        except Exception as e:
+            pass
 
     return chat_msg

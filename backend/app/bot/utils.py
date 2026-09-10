@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.models.models import BotUser
@@ -12,12 +13,19 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-async def get_or_create_user(tg_user) -> BotUser:
+async def get_or_create_user(tg_user, store_id: Optional[int] = 1) -> BotUser:
+    actual_store_id = store_id or 1
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(BotUser).where(BotUser.telegram_id == tg_user.id))
+        result = await session.execute(
+            select(BotUser).where(
+                BotUser.telegram_id == tg_user.id,
+                BotUser.store_id == actual_store_id
+            )
+        )
         user = result.scalar_one_or_none()
         if not user:
             user = BotUser(
+                store_id=actual_store_id,
                 telegram_id=tg_user.id,
                 username=tg_user.username,
                 first_name=tg_user.first_name,

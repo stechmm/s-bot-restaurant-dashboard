@@ -1,39 +1,46 @@
 import datetime
+from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.models import BotUser, Order, ChatMessage, Product
+from app.routers.deps import get_store_id
 
 router = APIRouter(prefix="/stats", tags=["Dashboard Statistics"])
 
 @router.get("/overview")
-async def get_overview_stats(db: AsyncSession = Depends(get_db)):
-    # Total Users
-    users_count = await db.scalar(select(func.count(BotUser.id))) or 0
+async def get_overview_stats(
+    store_id: Optional[int] = Depends(get_store_id),
+    db: AsyncSession = Depends(get_db)
+):
+    # Base filters
+    user_q = select(func.count(BotUser.id))
+    order_q = select(func.count(Order.id))
+    rev_q = select(func.sum(Order.total_amount)).where(Order.status.in_(["Confirmed", "Cooking", "Out for Delivery", "Delivered"]))
+    pending_q = select(func.count(Order.id)).where(Order.status == "Pending")
+    unread_q = select(func.count(ChatMessage.id)).where(ChatMessage.sender == "user", ChatMessage.is_read == False)
+    prod_q = select(func.count(Product.id))
+    recent_q = select(Order).order_by(Order.created_at.desc()).limit(5)
 
-    # Total Orders & Revenue
-    orders_count = await db.scalar(select(func.count(Order.id))) or 0
-    total_revenue = await db.scalar(
-        select(func.sum(Order.total_amount)).where(Order.status.in_(["Confirmed", "Shipped", "Delivered"]))
-    ) or 0.0
+    if store_id is not None:
+        user_q = user_q.where(BotUser.store_id == store_id)
+        order_q = order_q.where(Order.store_id == store_id)
+        rev_q = rev_q.where(Order.store_id == store_id)
+        pending_q = pending_q.where(Order.store_id == store_id)
+        unread_q = unread_q.where(ChatMessage.store_id == store_id)
+        prod_q = prod_q.where(Product.store_id == store_id)
+        recent_q = recent_q.where(Order.store_id == store_id)
 
-    # Pending Orders
-    pending_orders = await db.scalar(select(func.count(Order.id)).where(Order.status == "Pending")) or 0
+    users_count = await db.scalar(user_q) or 0
+    orders_count = await db.scalar(order_q) or 0
+    total_revenue = await db.scalar(rev_q) or 0.0
+    pending_orders = await db.scalar(pending_q) or 0
+    unread_messages = await db.scalar(unread_q) or 0
+    products_count = await db.scalar(prod_q) or 0
 
-    # Unread Support Messages
-    unread_messages = await db.scalar(
-        select(func.count(ChatMessage.id)).where(ChatMessage.sender == "user", ChatMessage.is_read == False)
-    ) or 0
-
-    # Total Products
-    products_count = await db.scalar(select(func.count(Product.id))) or 0
-
-    # Recent 5 Orders
-    recent_orders_res = await db.execute(
-        select(Order).order_by(Order.created_at.desc()).limit(5)
-    )
+    recent_orders_res = await db.execute(recent_q)
     recent_orders = [
         {
             "id": o.id,
@@ -53,20 +60,21 @@ async def get_overview_stats(db: AsyncSession = Depends(get_db)):
         day = today - datetime.timedelta(days=i)
         next_day = day + datetime.timedelta(days=1)
         
-        day_users = await db.scalar(
-            select(func.count(BotUser.id)).where(
-                BotUser.created_at >= datetime.datetime.combine(day, datetime.time.min),
-                BotUser.created_at < datetime.datetime.combine(next_day, datetime.time.min)
-            )
-        ) or 0
-        
-        day_revenue = await db.scalar(
-            select(func.sum(Order.total_amount)).where(
-                Order.created_at >= datetime.datetime.combine(day, datetime.time.min),
-                Order.created_at < datetime.datetime.combine(next_day, datetime.time.min),
-                Order.status != "Cancelled"
-            )
-        ) or 0.0
+        day_user_q = select(func.count(BotUser.id)).where(
+            BotUser.created_at >= datetime.datetime.combine(day, datetime.time.min),
+            BotUser.created_at < datetime.datetime.combine(next_day, datetime.time.min)
+        )
+        day_rev_q = select(func.sum(Order.total_amount)).where(
+            Order.created_at >= datetime.datetime.combine(day, datetime.time.min),
+            Order.created_at < datetime.datetime.combine(next_day, datetime.time.min),
+            Order.status != "Cancelled"
+        )
+        if store_id is not None:
+            day_user_q = day_user_q.where(BotUser.store_id == store_id)
+            day_rev_q = day_rev_q.where(Order.store_id == store_id)
+
+        day_users = await db.scalar(day_user_q) or 0
+        day_revenue = await db.scalar(day_rev_q) or 0.0
 
         chart_data.append({
             "date": day.strftime("%b %d"),

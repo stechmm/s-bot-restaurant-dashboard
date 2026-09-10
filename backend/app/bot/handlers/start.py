@@ -7,10 +7,13 @@ from app.core.config import settings
 logger = logging.getLogger("telegram_bot")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    store_name = context.bot_data.get("store_name", settings.STORE_NAME)
+    user = await get_or_create_user(update.effective_user, store_id=store_id)
+    
     welcome_text = (
         f"👋 မင်္ဂလာပါ <b>{update.effective_user.first_name}</b>!\n\n"
-        f"🌟 <b>{settings.STORE_NAME}</b> မှ ကြိုဆိုပါတယ်။\n"
+        f"🌟 <b>{store_name}</b> မှ ကြိုဆိုပါတယ်။\n"
         f"ကျွန်ုပ်တို့၏ Bot မှတစ်ဆင့် ကုန်ပစ္စည်းများ ကြည့်ရှုဝယ်ယူနိုင်ခြင်း၊ "
         f"Customer Support အဖွဲ့နှင့် တိုက်ရိုက် စကားပြောနိုင်ခြင်း၊ "
         f"သတင်းနှင့် ပရိုမိုးရှင်းများကို ရယူနိုင်ပါသည်။\n\n"
@@ -23,14 +26,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def about_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    store_name = context.bot_data.get("store_name", settings.STORE_NAME)
+    await get_or_create_user(update.effective_user, store_id=store_id)
+    
     about_text = (
-        f"ℹ️ <b>{settings.STORE_NAME} အကြောင်း</b>\n\n"
+        f"ℹ️ <b>{store_name} အကြောင်း</b>\n\n"
         f"✨ အကောင်းဆုံး ဝန်ဆောင်မှုနှင့် အရည်အသွေးမြင့် ကုန်ပစ္စည်းများကို အဆင်ပြေ လွယ်ကူစွာ ဝယ်ယူရရှိနိုင်ပါသည်။\n\n"
         f"📞 <b>ဆက်သွယ်ရန်:</b>\n"
         f"• Customer Support: Bot အတွင်း '💬 Customer Support' ကိုနှိပ်ပါ\n"
         f"• Payment Options: KBZPay, WavePay, Cash on Delivery\n"
-        f"• Delivery: ရန်ကုန်၊ မန္တလေးနှင့် မြန်မာနိုင်ငံအနှံ့ ပို့ဆောင်ပေးပါသည်\n\n"
+        f"• Delivery: အမြန်ဆုံး ပို့ဆောင်ပေးပါသည်\n\n"
         f"ကျေးဇူးတင်ရှိပါသည်! 🙏"
     )
     await update.message.reply_text(about_text, parse_mode="HTML")

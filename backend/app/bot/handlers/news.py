@@ -9,11 +9,12 @@ from app.bot.utils import get_or_create_user
 logger = logging.getLogger("telegram_bot")
 
 async def show_news_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await get_or_create_user(update.effective_user)
+    store_id = context.bot_data.get("store_id", 1)
+    await get_or_create_user(update.effective_user, store_id=store_id)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(NewsPost).where(NewsPost.is_published == True).order_by(NewsPost.created_at.desc()).limit(10)
+            select(NewsPost).where(NewsPost.store_id == store_id, NewsPost.is_published == True).order_by(NewsPost.created_at.desc()).limit(10)
         )
         posts = result.scalars().all()
 

@@ -6,29 +6,32 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
-from app.core.database import engine, Base
-from app.bot.bot_service import bot_service
+from app.core.migration import init_and_migrate_db
+from app.bot.multi_bot_manager import multi_bot_manager
 from app.bot.scheduler import start_scheduler, stop_scheduler
 
-# Import all models so SQLAlchemy creates tables
-from app.models import models
-from app.models import coupon, review
+# Import all models so SQLAlchemy metadata is aware of all tables
+from app.models import store, models, coupon, review
 
 # Routers
-from app.routers import auth, stats, products, orders, support, broadcast, settings as app_settings
-from app.routers import coupons, reviews
+from app.routers import (
+    auth, stats, products, orders, support, broadcast, 
+    settings as app_settings, coupons, reviews, stores
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Create tables if not exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Auto start Telegram Bot if token configured
+    # Startup: Initialize tables, migrate columns, seed default store
     try:
-        await bot_service.start()
+        await init_and_migrate_db()
     except Exception as e:
-        print(f"Bot auto-start notice: {e}")
+        print(f"Migration/Init notice: {e}")
+
+    # Auto start all active Telegram Bots concurrently
+    try:
+        await multi_bot_manager.start_all()
+    except Exception as e:
+        print(f"MultiBotManager auto-start notice: {e}")
 
     # Start daily report scheduler
     try:
@@ -38,13 +41,13 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: Stop bot and scheduler
-    await bot_service.stop()
+    # Shutdown: Stop all bots and scheduler
+    await multi_bot_manager.stop_all()
     stop_scheduler()
 
 app = FastAPI(
-    title="Restaurant Telegram Bot & Admin Dashboard API",
-    version="1.0.0",
+    title="Multi-Bot Restaurant & Business Control Center API",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -64,6 +67,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Include API Routers
 app.include_router(auth.router, prefix="/api")
+app.include_router(stores.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(products.router, prefix="/api")
 app.include_router(orders.router, prefix="/api")
@@ -91,12 +95,12 @@ if os.path.exists(FRONTEND_DIST):
         index_file = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.exists(index_file):
             return FileResponse(index_file)
-        return {"status": "online", "message": "Restaurant Backend API is running"}
+        return {"status": "online", "message": "Multi-Bot Platform Backend API is running"}
 else:
     @app.get("/")
     async def root():
         return {
             "status": "online",
-            "service": "Restaurant Telegram Bot & Admin Dashboard Backend",
-            "bot_active": bot_service.is_running
+            "service": "Multi-Bot Platform Backend API",
+            "active_bots_count": len(multi_bot_manager.active_bots)
         }
